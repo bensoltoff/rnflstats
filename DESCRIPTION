@@ -11,4 +11,5 @@ LazyData: TRUE
 Imports:
   dplyr (>= 0.4.3),
   ggplot2 (>= 1.0.1),
-  RPostgreSQL (>= 0.4)
+  readr (>= 0.2.2),
+  sqldf
