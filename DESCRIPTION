@@ -6,5 +6,9 @@ Date: 2015-12-14
 Author: Benjamin Soltoff
 Maintainer: <ben@bensoltoff.com>
 Description: TBD
-License: MIT License
+License: MIT
 LazyData: TRUE
+Imports:
+  dplyr (>= 0.4.3),
+  ggplot2 (>= 1.0.1),
+  RPostgreSQL (>= 0.4)

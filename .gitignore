@@ -12,3 +12,6 @@
 vignettes/*.html
 vignettes/*.pdf
 .Rproj.user
+
+# huge data files
+data/nfldb.sql
