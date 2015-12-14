@@ -19,6 +19,8 @@ load_data <- function(){
     path <- paste0("./data/armchair_analysis/", toupper(name), ".csv")
     copy_to(my_db, read_csv(path), name = name, temporary = FALSE)
   }
+  
+  return(my_db)
 }
 
 
