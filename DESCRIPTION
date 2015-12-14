@@ -1,0 +1,10 @@
+Package: rnflstats
+Type: Package
+Title: Playing around with NFL stats and win-probability models
+Version: 0.1
+Date: 2015-12-14
+Author: Benjamin Soltoff
+Maintainer: <ben@bensoltoff.com>
+Description: TBD
+License: MIT License
+LazyData: TRUE
