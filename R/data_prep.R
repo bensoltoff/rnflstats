@@ -125,5 +125,13 @@ fg_success_rate <- function(fg_data_fname, out_fname, min_pid = 473957){
   return(fgs_grouped)
 }
 
+nyt_fg_model <- function(fname, outname){
+  fgs <- readr::read_csv(fname) %>%
+    mutate(yfog = 100 - (fg_distance - 17))
+  
+  write_csv(fgs, outname)
+  
+  return(fgs)
+}
 
 
