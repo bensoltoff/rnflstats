@@ -3,7 +3,7 @@ load_games <- function(game_data_fname, remove_ties = FALSE){
   
   # Data from 2000 import is less reliable, omit this season
   # and use regular season games only.
-  games <- games %>%
+  games %<>%
     dplyr::filter(seas >= 2001 & wk <= 17) %>%
     dplyr::select(-stad, -temp, -humd, -wspd, -wdir, -cond, -surf)
   
@@ -46,8 +46,7 @@ switch_offense <- function(df){
 
   # if any points are scored on a PUNT/KOFF, they are given in terms
   # of the receiving team - switch this
-  df %>%
-    dplyr::mutate(pts = ifelse(type == "PUNT" | type == "KOFF", -1 * pts, pts))
+  dplyr::mutate(df, pts = ifelse(type == "PUNT" | type == "KOFF", -1 * pts, pts))
   
   return(df)
 }
@@ -66,26 +65,26 @@ code_fourth_downs <- function(df){
   fourths <- dplyr::filter(fourths, !grepl(pattern = omitstring, x = detail, ignore.case = TRUE))
   
   # Ran a play
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(goforit = ifelse(type == "RUSH" | type == "PASS", 1, goforit),
            punt = ifelse(type == "RUSH" | type == "PASS", 0, punt),
            kick = ifelse(type == "RUSH" | type == "PASS", 0, kick))
   
   # Field goal attempts and punts
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(goforit = ifelse(type == "FGXP" | type == "PUNT", 0, goforit),
            kick = ifelse(type == "FGXP", 1, kick),
            punt = ifelse(type == "PUNT", 1, punt))
   
   # Punted, but penalty on play
   puntstring <- "punts|out of bounds"
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(punt = ifelse(type == "NOPL" &
                            grepl(pattern = puntstring, x = detail, ignore.case = TRUE), 1, punt))
   
   # Kicked, but penalty on play
   kickstring <- "field goal is|field goal attempt"
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(kick = ifelse(type == "NOPL" &
                            grepl(pattern = kickstring, x = detail, ignore.case = TRUE), 1, kick))
   
@@ -93,14 +92,14 @@ code_fourth_downs <- function(df){
   gostring <- paste0("pass to|incomplete|sacked|left end|up the middle|pass interference|",
                      "right tackle|right guard|right end|pass intended|left tackle|left guard|",
                      "pass deep|pass short|up the middle")
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(goforit = ifelse(type == "NOPL" & 
                                      grepl(pattern = gostring, x = detail, ignore.case = TRUE) &
                                      -grepl(pattern = puntstring, x = detail, ignore.case = TRUE) &
                                      -grepl(pattern = kickstring, x = detail, ignore.case = TRUE),
                                    1, goforit))
   
-  fourths <- fourths %>%
+  fourths %<>%
     dplyr::mutate(sum = goforit + punt + kick) %>%
     dplyr::filter(sum == 1) %>%
     dplyr::select(-sum)
