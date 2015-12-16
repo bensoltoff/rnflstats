@@ -36,3 +36,24 @@ load_pbp <- function(pbp_data_fname, games, remove_knees = FALSE){
   
   return(pbp)
 }
+
+switch_offense <- function(df){
+  # df[df$V2 == "b", c("V1", "V3")] <- df[df$V2 == "b", c("V3", "V1")] 
+  
+  df[df$type == "PUNT" | df$type == "KOFF",
+     c("off", "def", "ptso", "ptsd", "timo", "timd")] <- df[df$type == "PUNT" | df$type == "KOFF",
+                                                            c("def", "off", "ptsd", "ptso", "timd", "timo")]
+
+  # if any points are scored on a PUNT/KOFF, they are given in terms
+  # of the receiving team - switch this
+  df %>%
+    dplyr::mutate(pts = ifelse(type == "PUNT" | type == "KOFF", -1 * pts, pts))
+  
+  return(df)
+}
+
+
+
+
+
+
