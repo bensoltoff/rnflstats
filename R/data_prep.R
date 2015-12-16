@@ -41,7 +41,8 @@ switch_offense <- function(df){
   # used solution from http://stackoverflow.com/questions/7746567/how-to-swap-values-between-2-columns
   df[df$type == "PUNT" | df$type == "KOFF",
      c("off", "def", "ptso", "ptsd", "timo", "timd")] <- df[df$type == "PUNT" | df$type == "KOFF",
-                                                            c("def", "off", "ptsd", "ptso", "timd", "timo")]
+                                                            c("def", "off", "ptsd",
+                                                              "ptso", "timd", "timo")]
 
   # if any points are scored on a PUNT/KOFF, they are given in terms
   # of the receiving team - switch this
@@ -107,6 +108,23 @@ code_fourth_downs <- function(df){
   return(fourths)
 }
 
+fg_success_rate <- function(fg_data_fname, out_fname, min_pid = 473957){
+  fgs <- readr::read_csv(fg_data_fname)
+  
+  fgs <- dplyr::filter(fgs, fgxp == "FG" & pid > min_pid)
+  
+  fgs_grouped <- fgs %>%
+    dplyr::group_by(dist) %>%
+    dplyr::summarize(N = n(),
+              average = mean(good))
+  
+  fgs_grouped <- dplyr::mutate(fgs_grouped, yfog = 100 - (dist - 17))
+  fgs_grouped %>%
+    dplyr::select(yfog, average) %>%
+    readr::write_csv(out_fname)
+  
+  return(fgs_grouped)
+}
 
 
 
