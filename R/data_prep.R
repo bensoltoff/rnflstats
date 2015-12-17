@@ -267,6 +267,40 @@ first_down_rates <- function(df_plays, yfog){
   return(merged)
 }
 
+join_df_first_down_rates <- function(df, fd_open_field, fd_inside_10){
+  open_field <- df %>%
+    dplyr::filter(yfog < 90) %>%
+    dplyr::mutate(yfog_bin = floor(yfog / 10)) %>%
+    dplyr::left_join(fd_open_field) %>%
+    dplyr::select(-yfog_bin)
+  
+  inside_10 <- df %>%
+    dplyr::filter(yfog > 90) %>%
+    dplyr::left_join(fd_inside_10)
+  
+  new_df <- dplyr::bind_rows(open_field, inside_10)
+  return(new_df)
+}
+
+kneel_down <- function(df){
+  df %<>%
+    dplyr::mutate(kneel_down = NA,
+                  kneel_down = ifelse(timd == 0 & secs_left <= 120 & dwn == 1 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(timd == 1 & secs_left == 84 & dwn == 1 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(timd == 2 & secs_left <= 48 & dwn == 1 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(timd == 0 & secs_left <= 84 & dwn == 2 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(timd == 1 & secs_left <= 45 & dwn == 2 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(timd == 0 & secs_left <= 42 & dwn == 3 &
+                                        score_diff > 0, 1, kneel_down),
+                  kneel_down = ifelse(score_diff <= 0 | dwn == 4, 0, kneel_down))
+  return(df)
+}
+
 data_prep <- function(pbp_data_location){
   if(!dir.exists(file.path(getwd(), "data"))){
     print("Making data directory.")
@@ -337,7 +371,7 @@ data_prep <- function(pbp_data_location){
   
   # Code situations where the offense can take a knee(s) to win
   print("Coding kneel downs.")
-  # joined <- kneel_down(joined)
+  joined <- kneel_down(joined)
   
   print("Computing first down rates.")
   
@@ -346,6 +380,7 @@ data_prep <- function(pbp_data_location){
   df_plays <- dplyr::filter(joined, type == "PASS" | type == "RUSH")
   fd_open_field <- first_down_rates(df_plays, "yfog_bin")
   fd_inside_10 <- first_down_rates(df_plays, "yfog")
+  joined <- join_df_first_down_rates(joined, fd_open_field, fd_inside_10)
 }
 
 
