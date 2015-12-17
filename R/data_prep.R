@@ -1,3 +1,8 @@
+#' Load data containing results of each game and return a DataFrame.
+#' 
+#' @param game_data_fname Filename of Armchair Analysis GAME table
+#' @param remove_ties Optional
+#' @return data_frame
 load_games <- function(game_data_fname, remove_ties = FALSE){
   games <- readr::read_csv(game_data_fname)
   
@@ -18,6 +23,12 @@ load_games <- function(game_data_fname, remove_ties = FALSE){
   return(games)
 }
 
+#' Load the play by play data and return a data frame.
+#' 
+#' @param pbp_data_fname Location of play by play data
+#' @param games Data frame, game-level data frame created by \code{load_games}
+#' @param remove_knees Optional
+#' @return data_frame
 load_pbp <- function(pbp_data_fname, games, remove_knees = FALSE){
   pbp <- readr::read_csv(pbp_data_fname) %>%
     dplyr::select(gid, pid, off, def, type, qtr, min, sec,
@@ -37,6 +48,13 @@ load_pbp <- function(pbp_data_fname, games, remove_knees = FALSE){
   return(pbp)
 }
 
+#' Swap game state columns for offense & defense dependent variables.
+#' The play by play data has some statistics on punts and kickoffs in terms
+#' of the receiving team. Switch these to reflect the game state for
+#' the kicking team.
+#' 
+#' @param df Play-by-play data frame
+#' @return data_frame
 switch_offense <- function(df){
   # used solution from http://stackoverflow.com/questions/7746567/how-to-swap-values-between-2-columns
   df[df$type == "PUNT" | df$type == "KOFF",
@@ -51,6 +69,12 @@ switch_offense <- function(df){
   return(df)
 }
 
+#' Parse all fourth downs and determine if teams intended to go for it,
+#' punt, or attempt a field goal. If intent is not clear, do not include
+#' the play.
+#' 
+#' @param df Play-by-play data frame
+#' @return data_frame
 code_fourth_downs <- function(df){
   fourths <- dplyr::filter(df, dwn == 4) %>%
     dplyr::mutate(goforit = 0,
@@ -107,6 +131,26 @@ code_fourth_downs <- function(df){
   return(fourths)
 }
 
+#' Historical field goal success rates by field position.
+#' 
+#' By default, uses only attempts from >= 2011 season to reflect
+#' more improved kicker performance.
+#' 
+#' Returns and writes results to a CSV.
+#' 
+#' NOTE: These are somewhat sparse and irregular at longer FG ranges.
+#' This is because kickers who attempt long FGs are not selected at
+#' random -- they are either in situations which require a long FG
+#' attempt or are kickers with a known long range. The NYT model
+#' uses a logistic regression kicking model developed by Josh Katz
+#' to smooth out these rates.
+#' 
+#' 
+#' @param fg_data_fname Filename of Armchair Analysis GAME table
+#' @param out_fname Filename of where to write output to
+#' @param min_pid Starting point in play-by-play data of which kicks to include.
+#' Defaults to start of 2011 season
+#' @return data_frame
 fg_success_rate <- function(fg_data_fname, out_fname, min_pid = 473957){
   fgs <- readr::read_csv(fg_data_fname)
   
@@ -125,6 +169,11 @@ fg_success_rate <- function(fg_data_fname, out_fname, min_pid = 473957){
   return(fgs_grouped)
 }
 
+#' Sub in simple logit for field goal success rates.
+#' 
+#' @param fname Filename of NYT model output
+#' @param outname Filename of where to write output to
+#' @return data_frame
 nyt_fg_model <- function(fname, outname){
   fgs <- readr::read_csv(fname) %>%
     dplyr::mutate(yfog = 100 - (fg_distance - 17))
@@ -134,6 +183,14 @@ nyt_fg_model <- function(fname, outname){
   return(fgs)
 }
 
+#' Group punts by kicking field position to get average return distance.
+#' Currently does not incorporate the possibility of a muffed punt
+#' or punt returned for a TD.
+#' 
+#' @param punt_data_fname Filename of where PUNT table is stored
+#' @param out_fname Filename of where to write output to
+#' @param joined Joined play-by-play and game data
+#' @return data_frame
 punt_averages <- function(punt_data_fname, out_fname, joined){
   punts <- readr::read_csv(punt_data_fname) %>%
     dplyr::left_join(select(joined, pid, yfog))
@@ -147,6 +204,13 @@ punt_averages <- function(punt_data_fname, out_fname, joined){
   return(punts_dist)
 }
 
+#' Group 4th down decisions by score difference and field
+#' position to get coarse historical comparisons.
+#' 
+#' Writes these to a CSV and returns them.
+#' 
+#' @param fourths Joined play-by-play and game data
+#' @return data_frame
 group_coaches_decisions <- function(fourths, out_fname){
   df <- fourths %>%
     dplyr::mutate(down_by_td = score_diff <= -4,
@@ -183,6 +247,12 @@ group_coaches_decisions <- function(fourths, out_fname){
   return(decisions)
 }
 
+#' Find the mean 1st down success rate at a given point in the field.
+#' 
+#' @param df_plays Play by play data frame
+#' @param yfog String, must be 'yfog' or 'yfog_bin'. If yfog, use the actual yards
+#' from own goal. If yfog_bin, use the decile of the field instead.
+#' @return data_frame
 first_down_rates <- function(df_plays, yfog){
   downs <- df_plays
   if(yfog == "yfog_bin") {
@@ -267,6 +337,12 @@ first_down_rates <- function(df_plays, yfog){
   return(merged)
 }
 
+#' Join the computed first down rates with the play by play data.
+#' 
+#' @param df Joined play-by-play data.
+#' @param fd_open_field Results of \code{first_down_rates} with yfog set to 'yfog_bin'.
+#' @param fd_inside_10 Results of \code{first_down_rates} with yfog set to 'yfog'.
+#' @return data_frame
 join_df_first_down_rates <- function(df, fd_open_field, fd_inside_10){
   open_field <- df %>%
     dplyr::filter(yfog < 90) %>%
@@ -282,6 +358,11 @@ join_df_first_down_rates <- function(df, fd_open_field, fd_inside_10){
   return(new_df)
 }
 
+#' Code a situation a 1 if the offense can kneel to end the game based on time
+#' remaining, defensive timeouts remaining, down, and score difference.
+#' 
+#' @param df Joined play-by-play data.
+#' @return data_frame
 kneel_down <- function(df){
   df %<>%
     dplyr::mutate(kneel_down = NA,
@@ -301,6 +382,16 @@ kneel_down <- function(df){
   return(df)
 }
 
+#' Determine the starting point for the final possession in each
+#' non-overtime, regular season game to use as a proxy for the probability
+#' that the team will have another possession in the game during the 4th quarter.
+#' 
+#' Used to weight the win probabilities in the 4th quarter.
+#' 
+#' @param drive_fname Filename of where DRIVE table is stored
+#' @param out_name Filename of where to write output to
+#' @param games Data frame generated by \code{load_games}
+#' @return data_frame
 calculate_prob_poss <- function(drive_fname, out_name, games){
   drives <- readr::read_csv(drive_fname) %>%
     dplyr::left_join(select(games, gid, seas, wk))
@@ -333,6 +424,11 @@ calculate_prob_poss <- function(drive_fname, out_name, games){
   return(final_drives)
 }
 
+#' Prepare Armchair Analysis data for analysis.
+#' 
+#' @param pbp_data_location Directory where Armchair Analysis csv
+#' files are stored.
+#' @return None
 data_prep <- function(pbp_data_location){
   if(!dir.exists(file.path(getwd(), "data"))){
     print("Making data directory.")
