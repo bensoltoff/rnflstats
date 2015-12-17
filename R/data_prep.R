@@ -429,6 +429,7 @@ calculate_prob_poss <- function(drive_fname, out_name, games){
 #' @param pbp_data_location Directory where Armchair Analysis csv
 #' files are stored.
 #' @return None
+#' @export
 data_prep <- function(pbp_data_location){
   if(!dir.exists(file.path(getwd(), "data"))){
     print("Making data directory.")
