@@ -134,4 +134,52 @@ nyt_fg_model <- function(fname, outname){
   return(fgs)
 }
 
+punt_averages <- function(punt_data_fname, out_fname, joined){
+  punts <- readr::read_csv(punt_data_fname) %>%
+    left_join(select(joined, pid, yfog))
+  
+  punts_dist <- punts %>%
+    group_by(yfog) %>%
+    summarize(pnet = mean(pnet))
+  
+  write_csv(punts_dist, out_fname)
+  
+  return(punts_dist)
+}
+
+group_coaches_decisions <- function(fourths, out_fname){
+  df <- fourths %>%
+    mutate(down_by_td = score_diff <= -4,
+           up_by_td = score_diff >= 4,
+           yfog_bin = yfog / 20,
+           short = ytg <= 3,
+           med = ytg >= 4 & ytg <= 7,
+           long = ytg > 7) %>%
+    mutate_each(funs(as.numeric), down_by_td, up_by_td, short:long)
+  
+  grouped <- df %>%
+    group_by(down_by_td:long)
+  
+  goforit <- grouped %>%
+    summarize(proportion_went = mean(goforit),
+              sample_size = n())
+  punt <- grouped %>%
+    summarize()
+  
+  decisions <- grouped %>%
+    summarize(proportion_went = mean(goforit),
+              sample_size = n(),
+              proportion_punted = mean(punt),
+              sample_size_punt = n(),
+              proportion_kicked = mean(kick),
+              sample_size_kick = n())
+  
+  write_csv(decisions, out_fname)
+  return(decisions)
+}
+
+
+
+
+
 
