@@ -301,6 +301,38 @@ kneel_down <- function(df){
   return(df)
 }
 
+calculate_prob_poss <- function(drive_fname, out_name, games){
+  drives <- readr::read_csv(drive_fname) %>%
+    dplyr::left_join(select(games, gid, seas, wk))
+  
+  # Restrict to non-overtime games
+  final_qtr <- drives %>%
+    dplyr::group_by(gid) %>%
+    dplyr::filter(qtr == max(qtr))
+  overtime_games <- dplyr::filter(final_qtr, qtr > 4)
+  drives_reduced <- drives %>%
+    dplyr::filter(!(gid %in% overtime_games$gid))
+  
+  # Starting time of final drive of game
+  drives_reduced %<>%
+    dplyr::filter(qtr == 4)
+  final_drive <- drives_reduced %>%
+    dplyr::group_by(gid) %>%
+    dplyr::filter(fpid == max(fpid)) %>%
+    dplyr::mutate(secs = min * 60 + sec)
+  
+  # Group and get summary statistics
+  final_drives <- final_drive %>%
+    dplyr::group_by(secs) %>%
+    dplyr::summarize(n = n()) %>%
+    ungroup %>%
+    dplyr::mutate(pct = n / sum(n),
+                  cum_pct = cumsum(pct))
+  
+  readr::write_csv(final_drives, "data/final_drives.csv")
+  return(final_drives)
+}
+
 data_prep <- function(pbp_data_location){
   if(!dir.exists(file.path(getwd(), "data"))){
     print("Making data directory.")
@@ -381,6 +413,13 @@ data_prep <- function(pbp_data_location){
   fd_open_field <- first_down_rates(df_plays, "yfog_bin")
   fd_inside_10 <- first_down_rates(df_plays, "yfog")
   joined <- join_df_first_down_rates(joined, fd_open_field, fd_inside_10)
+  
+  print("Calculating final drive statistics.")
+  final_drives <- calculate_prob_poss(file.path(pbp_data_location, "DRIVE.csv"),
+                                      "data/final_drives.csv", games)
+  
+  print("Writing cleaned play-by-play data.")
+  readr::write_csv(joined, "data/pbp_cleaned.csv")
 }
 
 
