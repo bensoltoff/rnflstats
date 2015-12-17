@@ -3,6 +3,8 @@
 #' @param game_data_fname Filename of Armchair Analysis GAME table
 #' @param remove_ties Optional
 #' @return data_frame
+#' @importFrom magrittr %>%
+#' @importFrom magrittr %<>%
 load_games <- function(game_data_fname, remove_ties = FALSE){
   games <- readr::read_csv(game_data_fname)
   
