@@ -13,4 +13,5 @@ Imports:
   ggplot2 (>= 1.0.1),
   readr (>= 0.2.2),
   sqldf,
-  magrittr
+  magrittr,
+  tidyr

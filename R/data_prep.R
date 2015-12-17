@@ -127,7 +127,7 @@ fg_success_rate <- function(fg_data_fname, out_fname, min_pid = 473957){
 
 nyt_fg_model <- function(fname, outname){
   fgs <- readr::read_csv(fname) %>%
-    mutate(yfog = 100 - (fg_distance - 17))
+    dplyr::mutate(yfog = 100 - (fg_distance - 17))
   
   write_csv(fgs, outname)
   
@@ -136,50 +136,216 @@ nyt_fg_model <- function(fname, outname){
 
 punt_averages <- function(punt_data_fname, out_fname, joined){
   punts <- readr::read_csv(punt_data_fname) %>%
-    left_join(select(joined, pid, yfog))
+    dplyr::left_join(select(joined, pid, yfog))
   
   punts_dist <- punts %>%
-    group_by(yfog) %>%
-    summarize(pnet = mean(pnet))
+    dplyr::group_by(yfog) %>%
+    dplyr::summarize(pnet = mean(pnet))
   
-  write_csv(punts_dist, out_fname)
+  readr::write_csv(punts_dist, out_fname)
   
   return(punts_dist)
 }
 
 group_coaches_decisions <- function(fourths, out_fname){
   df <- fourths %>%
-    mutate(down_by_td = score_diff <= -4,
+    dplyr::mutate(down_by_td = score_diff <= -4,
            up_by_td = score_diff >= 4,
-           yfog_bin = yfog / 20,
+           yfog_bin = floor(yfog / 20),
            short = ytg <= 3,
            med = ytg >= 4 & ytg <= 7,
            long = ytg > 7) %>%
-    mutate_each(funs(as.numeric), down_by_td, up_by_td, short:long)
+    dplyr::mutate_each(funs(as.numeric), down_by_td, up_by_td, short:long)
   
   grouped <- df %>%
-    group_by(down_by_td:long)
+    dplyr::group_by(down_by_td, up_by_td, yfog_bin,
+                    short, med, long)
   
   goforit <- grouped %>%
-    summarize(proportion_went = mean(goforit),
+    dplyr::summarize(proportion_went = mean(goforit),
               sample_size = n())
   punt <- grouped %>%
-    summarize()
+    dplyr::summarize(proportion_punted = mean(punt),
+                     sample_size = n())
+  kick <- grouped %>%
+    dplyr::summarize(proportion_kicked = mean(kick),
+                     sample_size = n())
   
   decisions <- grouped %>%
-    summarize(proportion_went = mean(goforit),
+    dplyr::summarize(proportion_went = mean(goforit),
               sample_size = n(),
               proportion_punted = mean(punt),
               sample_size_punt = n(),
               proportion_kicked = mean(kick),
               sample_size_kick = n())
   
-  write_csv(decisions, out_fname)
+  readr::write_csv(decisions, out_fname)
   return(decisions)
 }
 
+first_down_rates <- function(df_plays, yfog){
+  downs <- df_plays
+  if(yfog == "yfog_bin") {
+    # Break down the field into deciles
+    downs[[yfog]] <- with(downs, floor(yfog / 10))
+    downs <- dplyr::filter(downs, yfog < 90)
+  } else {
+    downs <- dplyr::filter(downs, yfog >= 90)
+  }
 
+  # For each segment, find the average first down rate by dwn and ytg
+  if(yfog == "yfog_bin") {
+    grouped <- downs %>%
+      dplyr::group_by(yfog_bin, dwn, ytg) %>%
+      dplyr::summarize(fdr = mean(first_down),
+                       N = n())
+  } else {
+    grouped <- downs %>%
+      dplyr::group_by(yfog, dwn, ytg) %>%
+      dplyr::summarize(fdr = mean(first_down),
+                       N = n())
+  }
 
+  # Just keep 3rd and 4th downs
+  grouped <- dplyr::filter(grouped, dwn >= 3)
+  if(yfog == "yfog_bin") {
+    merged <- grouped %>%
+      dplyr::left_join(grouped, by = c("yfog_bin", "ytg")) %>%
+      ungroup
+  } else {
+    merged <- grouped %>%
+      dplyr::left_join(grouped, by = c("yfog", "ytg")) %>%
+      ungroup
+  }
 
+  # Note this will lose scenarios that have *only* ever seen a 4th down
+  # This matches to one play since 2001.
+  merged <- dplyr::filter(merged, dwn.x == 4 & dwn.y == 3)
+  
+  # Compute a weighted mean of FDR on 3rd & 4th down to deal with sparsity
+  merged %<>%
+    dplyr::mutate(weighted_N.x = fdr.x * N.x,
+                  weighted_N.y = fdr.y * N.y,
+                  weighted_total = weighted_N.x + weighted_N.y,
+                  total_N = N.x + N.y,
+                  weighted_fdr = weighted_total / total_N) %>%
+    dplyr::select(-weighted_N.x, -weighted_N.y, -weighted_total, -total_N) %>%
+    dplyr::rename(dwn = dwn.x)
+  
+  # Need to fill in any missing combinations where possible
+  if(yfog == "yfog_bin"){
+    merged <- tidyr::complete(merged, c(yfog_bin, dwn, ytg))
+  } else {
+    merged <- tidyr::complete(merged, c(yfog, dwn, ytg))
+  }
+  merged %<>%
+    dplyr::rename(fdr = weighted_fdr)
+  
+  # Eliminate impossible combinations
+  if(yfog == "yfog_bin"){
+    # Sparse situations, just set to p(success) = .1
+    merged %<>%
+      dplyr::mutate(fdr = ifelse(ytg > 13, 0.10, fdr))
+    
+    # Missing values inside -10 because no one goes for it here
+    merged %<>%
+      dplyr::mutate(fdr = ifelse(is.na(fdr.x) & ytg <= 3, .2, fdr),
+                    fdr = ifelse(is.na(fdr.x) & ytg > 3, .1, fdr))
+    
+    # Fill in missing values
+#     merged %<>%
+#       dplyr::mutate(fdr = approxfun(fdr))
+    readr::write_csv(merged, "data/fd_open_field.csv")
+  } else {
+    merged %<>%
+      dplyr::filter(yfog + ytg <= 100) %>%
+      dplyr::mutate(fdr = ifelse(yfog == 99 & ytg == 1, fdr.x, fdr))
+    #     merged %<>%
+    #       dplyr::mutate(fdr = approxfun(fdr))
+    readr::write_csv(merged, "data/fd_inside_10.csv")
+  }
+  return(merged)
+}
+
+data_prep <- function(pbp_data_location){
+  if(!dir.exists(file.path(getwd(), "data"))){
+    print("Making data directory.")
+    dir.create(file.path(getwd(), "data"), showWarnings = FALSE)
+  }
+  
+  print("Loading game data.")
+  games <- load_games(file.path(pbp_data_location, "GAME.csv"))
+  print("Loading play by play data")
+  pbp <- load_pbp(file.path(pbp_data_location, "PBP.csv"), games, remove_knees = FALSE)
+  
+  print("Joining game and play by play data.")
+  joined <- dplyr::left_join(pbp, games)
+  
+  # Switch offensive and defensive stats on PUNT/KOFF
+  print("Munging data...")
+  joined <- switch_offense(joined)
+  
+  # Modify the spread so that the sign is negative when the offense
+  # is favored and positive otherwise
+  joined %<>%
+    dplyr::mutate(spread = sprv,
+                  spread = ifelse(off != v, spread,
+                                  -1 * spread))
+  
+  # For model purposes, touchdowns are "first downs" (successful conversion)
+  joined %<>%
+    dplyr::mutate(first_down = ifelse((fd == "Y" & !is.na(fd)) |
+                                        (pts >= 6 & !is.na(pts)), 1, 0))
+  
+  # Add winners for classification task
+  joined %<>%
+    dplyr::mutate(win = as.numeric(off == winner))
+  
+  # Features needed for the win probability model
+  joined %<>%
+    dplyr::mutate(score_diff = ptso - ptsd,
+                  secs_left = (((4 - qtr) * 15.0) * 60 +
+                                 (min * 60) + sec))
+  
+  # Group all fourth downs that indicate if the team went for it or not
+  # by down, yards to go, and yards from own goal
+  print("Processing fourth downs.")
+  fourths <- code_fourth_downs(joined)
+  
+  # Merge the goforit column back into all plays, not just fourth downs
+  joined %<>%
+    left_join(dplyr::select(fourths, gid, pid, goforit))
+  
+  print("Grouping and saving historical 4th down decisions.")
+  decisions <- group_coaches_decisions(fourths, "data/coaches_decisions.csv")
+  fourths_grouped <- fourths %>%
+    dplyr::group_by(dwn, ytg, yfog) %>%
+    dplyr::mutate(mean = mean(goforit),
+                  N = n())
+  readr::write_csv(fourths_grouped, "data/fourths_grouped.csv")
+  
+  # Remove kickoffs and extra points, retain FGs
+  joined %<>%
+    dplyr::filter(type != "KOFF") %>%
+    dplyr::filter(fgxp != "XP" | is.na(fgxp))
+  
+  print("Grouping and saving field goal attempts and punts.")
+  fgs_grouped <- fg_success_rate(file.path(pbp_data_location, "FGXP.csv"),
+                                 "data/fgs_grouped.csv")
+  punt_dist <- punt_averages(file.path(pbp_data_location, "PUNT.csv"),
+                             "data/punts_grouped.csv", joined)
+  
+  # Code situations where the offense can take a knee(s) to win
+  print("Coding kneel downs.")
+  # joined <- kneel_down(joined)
+  
+  print("Computing first down rates.")
+  
+  # Only rush and pass plays that were actually executed are eligible
+  # for computing first down success rates
+  df_plays <- dplyr::filter(joined, type == "PASS" | type == "RUSH")
+  fd_open_field <- first_down_rates(df_plays, "yfog_bin")
+  fd_inside_10 <- first_down_rates(df_plays, "yfog")
+}
 
 
