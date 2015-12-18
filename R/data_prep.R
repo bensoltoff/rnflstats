@@ -195,7 +195,7 @@ nyt_fg_model <- function(fname, outname){
 #' @return data_frame
 punt_averages <- function(punt_data_fname, out_fname, joined){
   punts <- readr::read_csv(punt_data_fname) %>%
-    dplyr::left_join(select(joined, pid, yfog))
+    dplyr::left_join(dplyr::select(joined, pid, yfog))
   
   punts_dist <- punts %>%
     dplyr::group_by(yfog) %>%
@@ -213,6 +213,7 @@ punt_averages <- function(punt_data_fname, out_fname, joined){
 #' 
 #' @param fourths Joined play-by-play and game data
 #' @return data_frame
+#' @importFrom dplyr ungroup
 group_coaches_decisions <- function(fourths, out_fname){
   df <- fourths %>%
     dplyr::mutate(down_by_td = score_diff <= -4,
@@ -221,7 +222,7 @@ group_coaches_decisions <- function(fourths, out_fname){
            short = ytg <= 3,
            med = ytg >= 4 & ytg <= 7,
            long = ytg > 7) %>%
-    dplyr::mutate_each(funs(as.numeric), down_by_td, up_by_td, short:long)
+    dplyr::mutate_each(dplyr::funs(as.numeric), down_by_td, up_by_td, short:long)
   
   grouped <- df %>%
     dplyr::group_by(down_by_td, up_by_td, yfog_bin,
@@ -396,7 +397,7 @@ kneel_down <- function(df){
 #' @return data_frame
 calculate_prob_poss <- function(drive_fname, out_name, games){
   drives <- readr::read_csv(drive_fname) %>%
-    dplyr::left_join(select(games, gid, seas, wk))
+    dplyr::left_join(dplyr::select(games, gid, seas, wk))
   
   # Restrict to non-overtime games
   final_qtr <- drives %>%
@@ -434,20 +435,20 @@ calculate_prob_poss <- function(drive_fname, out_name, games){
 #' @export
 data_prep <- function(pbp_data_location){
   if(!dir.exists(file.path(getwd(), "data"))){
-    print("Making data directory.")
+    cat("Making data directory.", fill = TRUE)
     dir.create(file.path(getwd(), "data"), showWarnings = FALSE)
   }
   
-  print("Loading game data.")
+  cat("Loading game data.", fill = TRUE)
   games <- load_games(file.path(pbp_data_location, "GAME.csv"))
-  print("Loading play by play data")
+  cat("Loading play by play data", fill = TRUE)
   pbp <- load_pbp(file.path(pbp_data_location, "PBP.csv"), games, remove_knees = FALSE)
   
-  print("Joining game and play by play data.")
+  cat("Joining game and play by play data.", fill = TRUE)
   joined <- dplyr::left_join(pbp, games)
   
   # Switch offensive and defensive stats on PUNT/KOFF
-  print("Munging data...")
+  cat("Munging data...", fill = TRUE)
   joined <- switch_offense(joined)
   
   # Modify the spread so that the sign is negative when the offense
@@ -474,14 +475,14 @@ data_prep <- function(pbp_data_location){
   
   # Group all fourth downs that indicate if the team went for it or not
   # by down, yards to go, and yards from own goal
-  print("Processing fourth downs.")
+  cat("Processing fourth downs.", fill = TRUE)
   fourths <- code_fourth_downs(joined)
   
   # Merge the goforit column back into all plays, not just fourth downs
   joined %<>%
-    left_join(dplyr::select(fourths, gid, pid, goforit))
+    dplyr::left_join(dplyr::select(fourths, gid, pid, goforit))
   
-  print("Grouping and saving historical 4th down decisions.")
+  cat("Grouping and saving historical 4th down decisions.", fill = TRUE)
   decisions <- group_coaches_decisions(fourths, "data/coaches_decisions.csv")
   fourths_grouped <- fourths %>%
     dplyr::group_by(dwn, ytg, yfog) %>%
@@ -494,17 +495,17 @@ data_prep <- function(pbp_data_location){
     dplyr::filter(type != "KOFF") %>%
     dplyr::filter(fgxp != "XP" | is.na(fgxp))
   
-  print("Grouping and saving field goal attempts and punts.")
+  cat("Grouping and saving field goal attempts and punts.", fill = TRUE)
   fgs_grouped <- fg_success_rate(file.path(pbp_data_location, "FGXP.csv"),
                                  "data/fgs_grouped.csv")
   punt_dist <- punt_averages(file.path(pbp_data_location, "PUNT.csv"),
                              "data/punts_grouped.csv", joined)
   
   # Code situations where the offense can take a knee(s) to win
-  print("Coding kneel downs.")
+  cat("Coding kneel downs.", fill = TRUE)
   joined <- kneel_down(joined)
   
-  print("Computing first down rates.")
+  cat("Computing first down rates.", fill = TRUE)
   
   # Only rush and pass plays that were actually executed are eligible
   # for computing first down success rates
@@ -513,11 +514,11 @@ data_prep <- function(pbp_data_location){
   fd_inside_10 <- first_down_rates(df_plays, "yfog")
   joined <- join_df_first_down_rates(joined, fd_open_field, fd_inside_10)
   
-  print("Calculating final drive statistics.")
+  cat("Calculating final drive statistics.", fill = TRUE)
   final_drives <- calculate_prob_poss(file.path(pbp_data_location, "DRIVE.csv"),
                                       "data/final_drives.csv", games)
   
-  print("Writing cleaned play-by-play data.")
+  cat("Writing cleaned play-by-play data.", fill = TRUE)
   readr::write_csv(joined, "data/pbp_cleaned.csv")
 }
 

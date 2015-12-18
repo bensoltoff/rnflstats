@@ -42,7 +42,7 @@ print.accuracy.meas <- function(x, ...)
 }
 
 plot_roc <- function(roc_data, roc_auc){
-  ggplot2::ggplot(roc_data, aes(x = fpr, y = tpr, ymin = 0, ymax = tpr)) +
+  ggplot2::ggplot(roc_data, ggplot2::aes(x = fpr, y = tpr, ymin = 0, ymax = tpr)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
     ggplot2::geom_ribbon(alpha = 0.2) +
     ggplot2::geom_line() +
@@ -69,7 +69,7 @@ calibration_plot <- function(preds, truth){
     dplyr::summarize(pred = mean(pred),
               win = mean(win))
   
-  ggplot2::ggplot(win_means, aes(pred, win)) +
+  ggplot2::ggplot(win_means, ggplot2::aes(pred, win)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
     ggplot2::geom_line(color = "blue") +
     ggplot2::scale_x_continuous(labels = scales::percent) +
@@ -80,6 +80,13 @@ calibration_plot <- function(preds, truth){
     ggplot2::theme_bw()
 }
 
+#' Estimate win probability model using Armchair Analysis play-by-play data.
+#' 
+#' @param plot Set to 'TRUE' if you wish to view the calibration plots
+#' and ROC curves for the model.
+#' @return None
+#' @importFrom dplyr tbl_df
+#' @export
 model_train <- function(plot = FALSE){
   # Only train on actual plays, remove 2pt conversion attempts
   cat("Reading play by play data.", fill = TRUE)
@@ -127,7 +134,7 @@ model_train <- function(plot = FALSE){
           scale = attr(scaled_features, "scaled:scale")) %>%
     as.data.frame %>%
     tbl_df %>%
-    dplyr::bind_cols(select(train, win))
+    dplyr::bind_cols(dplyr::select(train, win))
   
   cat("Training model.", fill = TRUE)
   logit <- glm(win ~ ., data = train_scaled, family = binomial(link = "logit"))
@@ -140,7 +147,7 @@ model_train <- function(plot = FALSE){
           scale = attr(scaled_features, "scaled:scale")) %>%
     as.data.frame %>%
     tbl_df %>%
-    dplyr::bind_cols(select(test, win))
+    dplyr::bind_cols(dplyr::select(test, win))
   preds <- predict(logit, newdata = test_scaled, type = "response")
   
   cat("Evaluating model performance.", fill = TRUE)
