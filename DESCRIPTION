@@ -14,5 +14,7 @@ Imports:
     readr (>= 0.2.2),
     sqldf,
     magrittr,
-    tidyr
+    tidyr,
+    scales,
+    ROCR
 RoxygenNote: 5.0.1
