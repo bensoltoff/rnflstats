@@ -1,3 +1,12 @@
+#' Calculate classification accuracy statistics.
+#'
+#' @param response Vector of actual wins.
+#' @param predicted Vector of predicted win probabilities.
+#' @param threshold Probability level that determines whether the
+#' prediction is a win or a loss.
+#'
+#' @return Object of class \code{accuracy.meas} containing precision,
+#' recall, and F-score statistics.
 accuracy.meas <- function(response, predicted, threshold = 0.5) 
 {
   if (length(response) != length(predicted)) 
@@ -41,6 +50,12 @@ print.accuracy.meas <- function(x, ...)
   cat(paste("F: ", sprintf("%.3f", x$F), "\n", sep = ""))
 }
 
+#' ROC Plot
+#'
+#' @param roc_data Data frame containing ROCR \code{performance} results.
+#' @param roc_auc AUC value.
+#'
+#' @return Plot of ROC curve.
 plot_roc <- function(roc_data, roc_auc){
   ggplot2::ggplot(roc_data, ggplot2::aes(x = fpr, y = tpr, ymin = 0, ymax = tpr)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
@@ -60,6 +75,16 @@ read_key <- function()
   line <- readline()
 }
 
+#' Produces a calibration plot for the win probability model.
+#' 
+#' Splits the predictions into percentiles and calculates the percentage
+#' of predictions per percentile that were wins. A perfectly calibrated model
+#' means that plays with a win probability of n% win about n% of the time.
+#'
+#' @param preds Vector of predicted win probabilities.
+#' @param truth Vector of actual wins.
+#'
+#' @return \code{ggplot2}
 calibration_plot <- function(preds, truth){
   cal_df <- dplyr::data_frame(pred = preds, win = truth,
                        pred_bin = dplyr::ntile(pred, 100))
