@@ -11,8 +11,7 @@ load_games <- function(game_data_fname, remove_ties = FALSE){
   # Data from 2000 import is less reliable, omit this season
   # and use regular season games only.
   games %<>%
-    dplyr::filter(seas >= 2001 & wk <= 17) %>%
-    dplyr::select(-stad, -temp, -humd, -wspd, -wdir, -cond, -surf)
+    dplyr::filter(seas >= 2001 & wk <= 17)
   
   # Calculate winner
   games <- dplyr::mutate(games, winner = ifelse(ptsv > ptsh, v,
@@ -182,6 +181,14 @@ nyt_fg_model <- function(fname, outname){
   
   write_csv(fgs, outname)
   
+  return(fgs)
+}
+
+fg_data <- function(fg_data_fname, out_fname){
+  fgs <- readr::read_csv(fg_data_fname) %>%
+    dplyr::filter(fgxp == "FG")
+  
+  readr::write_csv(fgs, out_fname)
   return(fgs)
 }
 
@@ -366,7 +373,7 @@ join_df_first_down_rates <- function(df, fd_open_field, fd_inside_10){
 #' 
 #' @param df Joined play-by-play data.
 #' @return data_frame
-kneel_down <- function(df){
+dp_kneel_down <- function(df){
   df %<>%
     dplyr::mutate(kneel_down = NA,
                   kneel_down = ifelse(timd == 0 & secs_left <= 120 & dwn == 1 &
@@ -496,6 +503,8 @@ data_prep <- function(pbp_data_location){
     dplyr::filter(fgxp != "XP" | is.na(fgxp))
   
   cat("Grouping and saving field goal attempts and punts.", fill = TRUE)
+  fgs <- fg_data(file.path(pbp_data_location, "FGXP.csv"),
+                 "data/fgs.csv")
   fgs_grouped <- fg_success_rate(file.path(pbp_data_location, "FGXP.csv"),
                                  "data/fgs_grouped.csv")
   punt_dist <- punt_averages(file.path(pbp_data_location, "PUNT.csv"),
@@ -503,7 +512,7 @@ data_prep <- function(pbp_data_location){
   
   # Code situations where the offense can take a knee(s) to win
   cat("Coding kneel downs.", fill = TRUE)
-  joined <- kneel_down(joined)
+  joined <- dp_kneel_down(joined)
   
   cat("Computing first down rates.", fill = TRUE)
   
