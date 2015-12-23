@@ -63,17 +63,17 @@ simulate_scenarios <- function(situation, data){
   
   # If it's 4th and goal, success is a touchdown, otherwise a 1st down.
   if(situation$ytg + situation$yfog >= 100){
-    scenarios$touchdown <- change_poss(situation, touchdown(...), features)
+    scenarios$touchdown <- change_poss(situation, touchdown, features)
   } else {
     scenarios$first_down <- first_down(situation)
   }
   
-  scenarios$fail <- change_poss(situation, turnover_downs(...), features)
+  scenarios$fail <- change_poss(situation, turnover_downs, features)
   
-  scenarios$punt <- change_poss(situation, punt(...), features, data = data$punts)
+  scenarios$punt <- change_poss(situation, punt, features, data = data$punts)
   
-  scenarios$fg <- change_poss(situation, field_goal(...), features)
-  scenarios$missed_fg <- change_poss(situation, missed_field_goal(...),
+  scenarios$fg <- change_poss(situation, field_goal, features)
+  scenarios$missed_fg <- change_poss(situation, missed_field_goal,
                                      features)
   
   return(scenarios)
@@ -86,36 +86,40 @@ simulate_scenarios <- function(situation, data){
 #' @param scenarios 
 #' @param model 
 #' @param data 
-#' @param ... 
 #'
 #' @return
-generate_win_probabilities <- function(situation, scenarios, model, data, ...){
+generate_win_probabilities <- function(situation, scenarios, model, data){
   probs <- vector("list", length = length(scenarios))
   names(probs) <- paste0(names(scenarios), "_wp")
+  probs <- lapply(probs, replace_null)
   
   features <- data$features
   
   # Pre-play win probability calculation
   # Note there is more information in situation than just model features
-  feature_vec <- situation[names(features)]
-  feature_vec <- do.call(rbind.data.frame, feature_vec) %>%
+  feature_vec <- situation[features]
+  feature_vec <- do.call(cbind.data.frame, feature_vec) %>%
     tbl_df %>%
-    scale(center = attr(scaled_features, "scaled:center"),
-          scale = attr(scaled_features, "scaled:scale"))
+    scale(center = attr(data$scaler, "scaled:center"),
+          scale = attr(data$scaler, "scaled:scale")) %>%
+    as.data.frame %>%
+    tbl_df
   
   probs$pre_play_wp <- predict(model, newdata = feature_vec, type = "response")[1]
   
   for(i in 1:length(scenarios)){
-    feature_vec <- scenarios[[i]][names(features)]
-    feature_vec <- do.call(rbind.data.frame, feature_vec) %>%
+    feature_vec <- scenarios[[i]][features]
+    feature_vec <- do.call(cbind.data.frame, feature_vec) %>%
       tbl_df %>%
-      scale(center = attr(scaled_features, "scaled:center"),
-            scale = attr(scaled_features, "scaled:scale"))
+      scale(center = attr(data$scaler, "scaled:center"),
+            scale = attr(data$scaler, "scaled:scale")) %>%
+      as.data.frame %>%
+      tbl_df
     
     pred_prob <- predict(model, newdata = feature_vec, type = "response")[1]
     
     # Change of possessions require 1 - WP
-    if(scenario %in% c("fg", "fail", "punt", "missed_fg", "touchdown")){
+    if(names(scenarios)[i] %in% c("fg", "fail", "punt", "missed_fg", "touchdown")){
       pred_prob <- 1 - pred_prob
     }
     
@@ -167,10 +171,10 @@ generate_win_probabilities <- function(situation, scenarios, model, data, ...){
 #' @param situation 
 #' @param data 
 #' @param probs 
-#' @param ... 
 #'
 #' @return
-generate_decision <- function(situation, data, probs, ...){
+generate_decision <- function(situation, data, probs){
+  
   decision <- list()
   
   decision$prob_success <- calc_prob_success(situation, data)
@@ -284,7 +288,7 @@ expected_win_prob <- function(pos_prob, pos_win_prob, neg_win_prob){
 #' @param data 
 #'
 #' @return
-expected_wg_fg <- function(situation, probs, data){
+expected_wp_fg <- function(situation, probs, data){
   if("fg_make_prob" %in% names(situation) & is.numeric(situation$fg_make_prob)){
     pos <- situation$fg_make_prob
   } else {
@@ -352,7 +356,7 @@ calc_prob_success <- function(situation, data){
                                        ytg == situation$ytg &
                                        yfog_bin == yfog_bin])[1]
     },
-    error = {
+    error = function(e) {
       # Arbitrary, set the probability of success for very long
       # 4th downs to be 0.1
       p_success <- 0.1
@@ -405,7 +409,8 @@ decide_best_play <- function(decision){
 random_play <- function(data){
   features <- data$features
   situation <- vector("list", length = length(features))
-  names(situation) <- names(features)
+  names(situation) <- features
+  situation <- lapply(situation, replace_null)
   
   situation$dwn <- 4
   situation$ytg <- floor(runif(1, 1, 10))

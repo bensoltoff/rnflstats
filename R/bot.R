@@ -6,7 +6,8 @@ load_data <- function(){
   data$punts <- readr::read_csv("data/punts_grouped.csv")
   data$fd_open_field <- readr::read_csv("data/fd_open_field.csv")
   data$fd_inside_10 <- readr::read_csv("data/fd_inside_10.csv")
-  data$final_drives <- readr::read_csv("data/coaches_decisions.csv")
+  data$final_drives <- readr::read_csv("data/final_drives.csv")
+  data$decisions <- readr::read_csv("data/coaches_decisions.csv")
   data$scaler <- readRDS("models/scaler.RDs")
   data$features <- c("dwn", "yfog", "secs_left",
                      "score_diff", "timo", "timd", "spread",
@@ -55,7 +56,7 @@ run_bot <- function(data, win_model, fg_model){
   
   response <- generate_response(situation, data, win_model)
   
-  cat(response, fill = TRUE)
+  return(response)
 }
 
 

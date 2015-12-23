@@ -35,6 +35,13 @@ kneel_down <- function(score_diff, timd, secs_left, dwn){
   return(0)
 }
 
+replace_null <- function(x){
+  if(is.null(x)){
+    x <- NA
+  }
+  return(x)
+}
+
 #' Handles situation updating for all plays that involve
 #' a change of possession, including punts, field goals,
 #' missed field goals, touchdowns, turnover on downs.
@@ -47,7 +54,8 @@ kneel_down <- function(score_diff, timd, secs_left, dwn){
 #' @return List
 change_poss <- function(situation, play_type, features, ...){
   new_situation <- vector("list", length = length(features))
-  names(new_situation) <- names(features)
+  names(new_situation) <- features
+  new_situation <- lapply(new_situation, replace_null)
   
   # Nearly all changes of possession result in a 1st & 10
   # Doesn't cover the edge case of a turnover within own 10 yardline.
@@ -89,7 +97,7 @@ change_poss <- function(situation, play_type, features, ...){
   return(new_situation)
 }
 
-field_goal <- function(situation, new_situation, ...){
+field_goal <- function(situation, new_situation){
   new_situation$score_diff <- situation$score_diff + 3
   
   # Assume the starting field position will be own 25, accounts
@@ -103,15 +111,14 @@ field_goal <- function(situation, new_situation, ...){
 #'
 #' @param situation 
 #' @param new_situation 
-#' @param ... 
 #'
 #' @return
-missed_field_goal <- function(situation, new_situation, ...){
+missed_field_goal <- function(situation, new_situation){
   new_situation$yfog <- 100 - (situation$yfog - 8)
   return(new_situation)
 }
 
-touchdown <- function(situation, new_situation, ...){
+touchdown <- function(situation, new_situation){
   # Assumes successful XP and no 2PC -- revisit this for 2015?
   new_situation$score_diff <- situation$score_diff + 7
   new_situation$yfog <- 25
@@ -119,7 +126,7 @@ touchdown <- function(situation, new_situation, ...){
   return(new_situation)
 }
 
-turnover_downs <- function(situation, new_situation, ...){
+turnover_downs <- function(situation, new_situation){
   new_situation$yfog <- 100 - situation$yfog
   return(new_situation)
 }
@@ -132,17 +139,18 @@ turnover_downs <- function(situation, new_situation, ...){
 #'
 #' @param situation 
 #' @param new_situation 
+#' @param ... 
 #'
 #' @return
 punt <- function(situation, new_situation, ...){
   default_punt <- 5
   
-  tryCatch({
+  pnet <- tryCatch({
     i <- which(data$yfog == situation$yfog)
-    pnet <- data$pnet[i]
+    return(data$pnet[i])
   },
-  error = {
-    pnet <- default_punt
+  error = function(e) {
+    return(default_punt)
   })
   
   new_yfog <- floor(100 - (situation$yfog + pnet))
