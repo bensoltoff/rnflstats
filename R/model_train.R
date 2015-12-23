@@ -167,8 +167,8 @@ model_train <- function(plot = FALSE){
     scale(center = attr(scaled_features, "scaled:center"),
           scale = attr(scaled_features, "scaled:scale")) %>%
     as.data.frame %>%
-    tbl_df %>%
-    dplyr::bind_cols(dplyr::select(train, win))
+    cbind(dplyr::select(train, win)) %>%
+    tbl_df
   
   cat("Training model.", fill = TRUE)
   logit <- glm(win ~ ., data = train_scaled, family = binomial(link = "logit"))
@@ -254,7 +254,7 @@ fg_model_train <- function(plot = FALSE){
   # Features to use in the model
   features <- c("yfog", "temp", "humd",	"wspd",
                 "dome", "grass", "precip", "highalt",
-                "fkicker", "stad")
+                "fkicker", "stad", "seas")
   target <- "good"
   
   cat("Splitting data into train/test sets", fill = TRUE)
@@ -288,7 +288,7 @@ fg_model_train <- function(plot = FALSE){
   logit <- glm(good ~ yfog +
                  (poly(temp, 2) + poly(humd, 2) +
                     poly(wspd, 2) + precip) * dome +
-                 grass + highalt,
+                 grass + highalt + poly(seas, 3),
                data = train, family = binomial(link = "logit"))
   summary(logit)
   
