@@ -184,14 +184,6 @@ nyt_fg_model <- function(fname, outname){
   return(fgs)
 }
 
-fg_data <- function(fg_data_fname, out_fname){
-  fgs <- readr::read_csv(fg_data_fname) %>%
-    dplyr::filter(fgxp == "FG")
-  
-  readr::write_csv(fgs, out_fname)
-  return(fgs)
-}
-
 #' Group punts by kicking field position to get average return distance.
 #' Currently does not incorporate the possibility of a muffed punt
 #' or punt returned for a TD.
@@ -503,8 +495,11 @@ data_prep <- function(pbp_data_location){
     dplyr::filter(fgxp != "XP" | is.na(fgxp))
   
   cat("Grouping and saving field goal attempts and punts.", fill = TRUE)
-  fgs <- fg_data(file.path(pbp_data_location, "FGXP.csv"),
-                 "data/fgs.csv")
+  # Adding data/FGXP.csv "good" and "fkicker" columns
+  joined %<>%
+    dplyr::select(-good) %>%
+    dplyr::left_join(readr::read_csv(file.path(pbp_data_location, "FGXP.csv")) %>%
+                       dplyr::select(pid, fkicker, good))
   fgs_grouped <- fg_success_rate(file.path(pbp_data_location, "FGXP.csv"),
                                  "data/fgs_grouped.csv")
   punt_dist <- punt_averages(file.path(pbp_data_location, "PUNT.csv"),

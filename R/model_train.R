@@ -85,7 +85,7 @@ read_key <- function()
 #' @param truth Vector of actual wins.
 #'
 #' @return \code{ggplot2}
-calibration_plot <- function(preds, truth){
+calibration_plot <- function(preds, truth, fg = FALSE){
   cal_df <- dplyr::data_frame(pred = preds, win = truth,
                        pred_bin = dplyr::ntile(pred, 100))
   
@@ -94,15 +94,24 @@ calibration_plot <- function(preds, truth){
     dplyr::summarize(pred = mean(pred),
               win = mean(win))
   
-  ggplot2::ggplot(win_means, ggplot2::aes(pred, win)) +
+  plot <- ggplot2::ggplot(win_means, ggplot2::aes(pred, win)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
     ggplot2::geom_line(color = "blue") +
     ggplot2::scale_x_continuous(labels = scales::percent) +
     ggplot2::scale_y_continuous(labels = scales::percent) +
-    ggplot2::labs(title = "Win probability calculation, binned by percent",
-         x = "Estimated win probability",
-         y = "True win percentage") +
     ggplot2::theme_bw()
+  
+  if(fg == FALSE){
+    plot +
+      ggplot2::labs(title = "Win probability calculation, binned by percent",
+                    x = "Estimated win probability",
+                    y = "True win percentage")
+  } else {
+    plot +
+      ggplot2::labs(title = "FG success probability calculation, binned by percent",
+                    x = "Estimated FG success probability",
+                    y = "True FG success percentage")
+  }
 }
 
 #' Estimate win probability model using Armchair Analysis play-by-play data.
@@ -124,8 +133,8 @@ model_train <- function(plot = FALSE){
     # Interaction between qtr & score difference -- late score differences
     # are more important than early ones.
     dplyr::mutate(qtr_scorediff = qtr * score_diff,
-           # Decay effect of spread over course of game
-           spread = spread * (secs_left / 3600))
+                  # Decay effect of spread over course of game
+                  spread = spread * (secs_left / 3600))
   
   # Features to use in the model
   features <- c("dwn", "yfog", "secs_left",
@@ -184,8 +193,8 @@ model_train <- function(plot = FALSE){
   pred <- ROCR::prediction(preds, test_scaled$win)
   perf <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
   roc_data <- dplyr::data_frame(fpr = unlist(perf@x.values),
-                         tpr = unlist(perf@y.values),
-                         model = "GLM")
+                                tpr = unlist(perf@y.values),
+                                model = "GLM")
   
   roc_auc <- ROCR::performance(pred, measure = "auc")
   roc_auc <- roc_auc@y.values[[1]]
@@ -207,8 +216,126 @@ model_train <- function(plot = FALSE){
     dir.create(file.path(getwd(), "models"))
   }
   
-  save(logit, file = "models/win_probability.RData")
-  save(scaled_features, file = "models/scaler.RData")
+  saveRDS(logit, file = "models/win_probability.RDs")
+  saveRDS(scaled_features, file = "models/scaler.RDs")
+}
+
+#' Estimate field goal success probability model using Armchair Analysis play-by-play data.
+#' 
+#' @param plot Set to 'TRUE' if you wish to view the calibration plots
+#' and ROC curves for the model.
+#' @return None
+#' @importFrom dplyr tbl_df
+#' @export
+fg_model_train <- function(plot = FALSE){
+  # Only train on field goal attempts
+  cat("Reading play by play data.", fill = TRUE)
+  df <- readr::read_csv("data/pbp_cleaned.csv")
+  df_plays <- df %>%
+    dplyr::filter(fgxp == "FG" &
+                    !is.na(fgxp))
+  
+  # Custom features
+  df_plays %<>%
+    # Check if game is played in a closed dome
+    dplyr::mutate(dome = ifelse(cond == "Closed Roof" | cond == "Dome", 1, 0),
+                  wspd = ifelse(dome == 1, 0, wspd),
+                  humd = ifelse(dome == 1, 0, humd)) %>%
+    # Check if game is played on grass
+    dplyr::mutate(grass = ifelse(surf == "Grass", 1, 0)) %>%
+    # Check if there is precipiation
+    dplyr::mutate(precip = ifelse(cond == "Flurries" | cond == "Light Snow" |
+                                    cond == "Snow" | cond == "Light Rain" |
+                                    cond == "Rain", 1, 0),
+                  precip = ifelse(dome == 1, 0, precip)) %>%
+    # Check if game is played at high altitude
+    dplyr::mutate(highalt = ifelse(h == "DEN", 1, 0))
+  
+  # Features to use in the model
+  features <- c("yfog", "temp", "humd",	"wspd",
+                "dome", "grass", "precip", "highalt",
+                "fkicker", "stad")
+  target <- "good"
+  
+  cat("Splitting data into train/test sets", fill = TRUE)
+  df_plays %<>%
+    dplyr::select(one_of(c(features, target))) %>%
+    # remove plays with missing data
+    na.omit %>%
+    dplyr::mutate(train = rbinom(n(), 1, .9))
+  
+  train <- df_plays %>%
+    dplyr::filter(train == 1) %>%
+    dplyr::select(-train)
+  test <- df_plays %>%
+    dplyr::filter(train == 0) %>%
+    dplyr::select(-train)
+  
+#   cat("Scaling features.", fill = TRUE)
+#   scaled_features <- train %>%
+#     dplyr::select(-good) %>%
+#     scale
+#   
+#   train_scaled <- train %>%
+#     dplyr::select(-good) %>%
+#     scale(center = attr(scaled_features, "scaled:center"),
+#           scale = attr(scaled_features, "scaled:scale")) %>%
+#     as.data.frame %>%
+#     tbl_df %>%
+#     dplyr::bind_cols(dplyr::select(train, good))
+  
+  cat("Training model.", fill = TRUE)
+  logit <- glm(good ~ yfog +
+                 (poly(temp, 2) + poly(humd, 2) +
+                    poly(wspd, 2) + precip) * dome +
+                 grass + highalt,
+               data = train, family = binomial(link = "logit"))
+  summary(logit)
+  
+  cat("Making predictions on test set.", fill = TRUE)
+#   test_scaled <- test %>%
+#     dplyr::select(-good) %>%
+#     scale(center = attr(scaled_features, "scaled:center"),
+#           scale = attr(scaled_features, "scaled:scale")) %>%
+#     as.data.frame %>%
+#     tbl_df %>%
+#     dplyr::bind_cols(dplyr::select(test, good))
+  preds <- predict(logit, newdata = test, type = "response")
+  
+  cat("Evaluating model performance.", fill = TRUE)
+  log_loss <- function(actual, predicted, eps = 0.00001) {
+    predicted <- pmin(pmax(predicted, eps), 1 - eps)
+    -1 / length(actual) * (sum(actual * log(predicted) + (1 - actual) * log(1 - predicted)))
+  }
+  
+  pred <- ROCR::prediction(preds, test$good)
+  perf <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
+  roc_data <- dplyr::data_frame(fpr = unlist(perf@x.values),
+                                tpr = unlist(perf@y.values),
+                                model = "GLM")
+  
+  roc_auc <- ROCR::performance(pred, measure = "auc")
+  roc_auc <- roc_auc@y.values[[1]]
+  cat(paste("AUC:", roc_auc), fill = TRUE)
+  cat(paste("Log loss:", log_loss(test$good, preds)), fill = TRUE)
+  
+  print(accuracy.meas(test$good, preds))
+  cat(paste("F1 score:", accuracy.meas(test$good, preds)$F), fill = TRUE)
+  
+  if(plot){
+    print(plot_roc(roc_data, roc_auc))
+    read_key()
+    
+    print(calibration_plot(preds, test$good, fg = TRUE))
+  }
+  
+  cat("Saving model and scaler.", fill = TRUE)
+  if(!(dir.exists(file.path(getwd(), "models")))){
+    dir.create(file.path(getwd(), "models"))
+  }
+  
+  saveRDS(logit, file = "models/fg_probability.RDs")
+  # saveRDS(scaled_features, file = "models/fg_scaler.RDs")
 }
 
 
