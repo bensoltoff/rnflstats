@@ -185,6 +185,11 @@ first_down <- function(situation){
   return(new_situation)
 }
 
+#' Given the seconds left in the game, determine the current quarter.
+#'
+#' @param secs_left 
+#'
+#' @return
 qtr <- function(secs_left){
   if(secs_left <= 900) return(4)
   if(secs_left <= 1800) return(3)
