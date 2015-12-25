@@ -1,3 +1,7 @@
+#' Load previously compiled data and estimated win and field goal models.
+#'
+#' @return
+#' @export
 load_data <- function(){
   cat("Loading data and setting up model.", fill = TRUE)
   
@@ -30,26 +34,39 @@ fg_make_prob <- function(situation, model){
   return(pred_prob)
 }
 
-run_bot <- function(data, win_model, fg_model){
-  situation <- vector("list", length = length(data$features))
-  names(situation) <- data$features
-  
-  situation$dwn <- as.numeric(readline("Down: "))
-  situation$ytg <- as.numeric(readline("Yards to go: "))
-  situation$yfog <- as.numeric(readline("Yards from own goal: "))
-  situation$secs_left <- as.numeric(readline("Seconds remaining in game: "))
-  situation$score_diff <- as.numeric(readline("Offense's lead (can be negative): "))
-  situation$timo <- as.numeric(readline("Timeouts remaining, offense: "))
-  situation$timd <- as.numeric(readline("Timeouts remaining, defense: "))
-  situation$spread <- as.numeric(readline("Spread in terms of offensive team (can be negative, enter 0 if you don't know): "))
-  situation$dome <- as.numeric(readline("Is game in dome? 1 for yes, 0 for no: "))
-  situation$offense <- readline("Team on offense (e.g. PHI): ")
-  situation$home <- readline("Home team: ")
-  situation$temp <- as.numeric(readline("Temperature: "))
-  situation$humd <- as.numeric(readline("Humidity (as a percentage): "))
-  situation$wspd <- as.numeric(readline("Windspeed (mph): "))
-  situation$precip <- as.numeric(readline("Precipitation? 1 for yes, 0 for no: "))
-  situation$grass <- as.numeric(readline("Played on grass? 1 for yes, 0 for no: "))
+#' Calculate the expected win probability for a given game state.
+#'
+#' @param data 
+#' @param win_model 
+#' @param fg_model 
+#' @param situation 
+#'
+#' @return
+#' @export
+run_bot <- function(data, win_model, fg_model, situation = NULL){
+  # Interactive prompts to create play situation if situation
+  # is not already provided
+  if(is.null(situation)){
+    situation <- vector("list", length = length(data$features))
+    names(situation) <- data$features
+    
+    situation$dwn <- as.numeric(readline("Down: "))
+    situation$ytg <- as.numeric(readline("Yards to go: "))
+    situation$yfog <- as.numeric(readline("Yards from own goal: "))
+    situation$secs_left <- as.numeric(readline("Seconds remaining in game: "))
+    situation$score_diff <- as.numeric(readline("Offense's lead (can be negative): "))
+    situation$timo <- as.numeric(readline("Timeouts remaining, offense: "))
+    situation$timd <- as.numeric(readline("Timeouts remaining, defense: "))
+    situation$spread <- as.numeric(readline("Spread in terms of offensive team (can be negative, enter 0 if you don't know): "))
+    situation$dome <- as.numeric(readline("Is game in dome? 1 for yes, 0 for no: "))
+    situation$offense <- readline("Team on offense (e.g. PHI): ")
+    situation$home <- readline("Home team: ")
+    situation$temp <- as.numeric(readline("Temperature: "))
+    situation$humd <- as.numeric(readline("Humidity (as a percentage): "))
+    situation$wspd <- as.numeric(readline("Windspeed (mph): "))
+    situation$precip <- as.numeric(readline("Precipitation? 1 for yes, 0 for no: "))
+    situation$grass <- as.numeric(readline("Played on grass? 1 for yes, 0 for no: "))
+  }
   situation$highalt <- ifelse(situation$home == "DEN", 1, 0)
   situation$seas <- 2015
   situation$fg_make_prob <- fg_make_prob(situation[!sapply(situation, is.null)], fg_model)

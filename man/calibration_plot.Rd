@@ -4,7 +4,7 @@
 \alias{calibration_plot}
 \title{Produces a calibration plot for the win probability model.}
 \usage{
-calibration_plot(preds, truth)
+calibration_plot(preds, truth, fg = FALSE)
 }
 \arguments{
 \item{preds}{Vector of predicted win probabilities.}

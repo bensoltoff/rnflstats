@@ -21,6 +21,7 @@ generate_response <- function(situation, data, model){
                   probs = optimal$probs,
                   situation = situation)
   
+  class(payload) <- "mod.response"
   return(payload)
 }
 
@@ -406,6 +407,7 @@ decide_best_play <- function(decision){
 #' @param data 
 #'
 #' @return
+#' @export
 random_play <- function(data){
   features <- data$features
   situation <- vector("list", length = length(features))
@@ -417,13 +419,138 @@ random_play <- function(data){
   situation$yfog <- floor(runif(1, 1, (100 - situation$ytg)))
   situation$secs_left <- floor(runif(1, 1, 3600))
   situation$score_diff <- floor(runif(1, -20, 20))
-  situation$timeo <- round(runif(1, 1, 3), digits = 0)
-  situation$timed <- round(runif(1, 1, 3), digits = 0)
+  situation$timo <- round(runif(1, 1, 3), digits = 0)
+  situation$timd <- round(runif(1, 1, 3), digits = 0)
   situation$spread <- 0
-  
-  situation <- calculate_features(situation, data)
-  
   situation$dome <- round(runif(1, 0, 1), digits = 0)
+  situation$offense <- sample(c("PIT", "PHI"), 1)
+  situation$home <- sample(c("PIT", "PHI"), 1)
+  situation$temp <- round(runif(1, 30, 80), digits = 0)
+  situation$humd <- round(runif(1, 0, 100), digits = 0)
+  situation$wspd <- round(runif(1, 0, 30), digits = 0)
+  situation$precip <- rbinom(1, 1, .5)
+  situation$grass <- rbinom(1, 1, .5)
+  
   return(situation)
 }
+
+#' Create a plot of the decision state to go for it, attempt a field goal,
+#' or punt.
+#'
+#' @param results Result of \code{generate_decision}.
+#'
+#' @return
+#' @export
+#'
+#' @import ggplot2
+#' @import scales
+#' @import grid
+#' @import gridExtra
+#' @import dplyr
+#' @import lubridate
+plot_decision <- function(results){
+  # Calculate polygon dimensions for each potential decision
+  punt <- dplyr::data_frame(x = c(0, 0,
+                                  results$decision$breakeven_punt, results$decision$breakeven_punt),
+                            y = c(0, results$decision$breakeven_fg,
+                                  results$decision$breakeven_fg, 0))
+  go_for_it <- dplyr::data_frame(x = c(results$decision$breakeven_punt, results$decision$breakeven_punt,
+                                       results$decision$prob_success, 1, 1),
+                                 y = c(0, results$decision$breakeven_fg, 1, 1, 0))
+  fg <- dplyr::data_frame(x = c(0, 0,
+                                results$decision$prob_success, results$decision$breakeven_punt),
+                          y = c(results$decision$breakeven_fg, 1, 1, results$decision$breakeven_fg))
+  outline <- dplyr::data_frame(x = c(0, results$decision$breakeven_punt,
+                                     results$decision$breakeven_punt,
+                                     results$decision$breakeven_punt, results$decision$prob_success),
+                               y = c(results$decision$breakeven_fg, results$decision$breakeven_fg,
+                                     0, results$decision$breakeven_fg, 1))
+  poly_labs <- dplyr::data_frame(x = c(mean(punt$x), mean(go_for_it$x), mean(fg$x)),
+                                 y = c(mean(punt$y), mean(go_for_it$y), mean(fg$y)),
+                                 label = c("PUNT", "GO\nFOR IT", "ATTEMPT\nFIELD\nGOAL"))
+  
+  # Format label text for title
+  down <- with(results$situation,
+               ifelse(dwn == 1, "1st",
+                      ifelse(dwn == 2, "2nd",
+                             ifelse(dwn == 3, "3rd", "4th"))))
+  
+  yfog <- with(results$situation,
+               ifelse(yfog < 50, paste("Own", yfog),
+                      ifelse(yfog > 50, paste("opponent's", 100 - yfog),
+                             "midfield")))
+  
+  score_diff <- with(results$situation,
+                     ifelse(score_diff > 0, paste("Up by", score_diff),
+                            ifelse(score_diff < 0, paste("Down by", -1 * score_diff),
+                                   "Tied")))
+  
+  secs_left <- with(results$situation,
+                    secs_left - (abs(qtr - 4) * 15 * 60)) %>%
+    lubridate::seconds_to_period(.)
+  secs_left <- paste(lubridate::minute(secs_left), lubridate::second(secs_left), sep = ":")
+  
+  qtr <- with(results$situation,
+              ifelse(qtr == 1, "1st",
+                     ifelse(qtr == 2, "2nd",
+                            ifelse(qtr == 3, "3rd", "4th"))))
+  
+  plot_title1 <- paste("What to do on", paste0(down, "-and-", results$situation$ytg), "on", yfog) %>%
+    toupper
+  plot_title2 <- paste(score_diff, "with", secs_left, "remaining in the", qtr, "quarter")
+  
+  p <- ggplot2::ggplot() +
+    ggplot2::scale_x_continuous(labels = scales::percent, breaks = seq(0, 1, by = .2)) +
+    ggplot2::scale_y_continuous(labels = scales::percent, breaks = seq(0, 1, by = .2)) +
+    ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+    ggplot2::geom_polygon(data = punt, ggplot2::aes(x, y),
+                 alpha = .4, fill = "red") +
+    ggplot2::geom_polygon(data = go_for_it, ggplot2::aes(x, y),
+                 alpha = .4, fill = "green") +
+    ggplot2::geom_polygon(data = fg, ggplot2::aes(x, y),
+                 alpha = .4, fill = "blue") +
+    ggplot2::geom_line(data = outline, ggplot2::aes(x, y),
+              size = 2, color = "white") +
+    ggplot2::geom_line(data = dplyr::data_frame(x = c(results$decision$prob_success,
+                                                     results$decision$prob_success),
+                                y = c(-.075, results$probs$prob_success_fg)),
+                       ggplot2::aes(x, y), linetype = 2, alpha = .4) +
+    ggplot2::geom_line(data = dplyr::data_frame(x = c(results$decision$prob_success, -0.075),
+                                y = c(results$probs$prob_success_fg, results$probs$prob_success_fg)),
+                       ggplot2::aes(x, y), linetype = 2, alpha = .4) +
+    ggplot2::geom_point(ggplot2::aes(x = results$decision$prob_success,
+                                     y = results$probs$prob_success_fg),
+               size = 4) +
+    ggplot2::geom_text(data = poly_labs,
+                       ggplot2::aes(x, y, label = label), size = 5, color = "grey40") +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(round(results$decision$prob_success * 100),
+                                                   "% chance\nof converting\n4th down"),
+                                    x = results$decision$prob_success, y = 0),
+              vjust = 2, hjust = .1, size = 3, lineheight = 1) +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(round(results$probs$prob_success_fg * 100),
+                                                   "% chance\nof making\nfield goal"),
+                                    x = -.09, y = results$probs$prob_success_fg),
+              vjust = .8, hjust = 1, size = 3, lineheight = 1) +
+    ggplot2::geom_text(ggplot2::aes(label = plot_title1), x = 0, y = Inf,
+                       vjust = -1, hjust = 0, fontface = "bold") +
+    ggplot2::geom_text(ggplot2::aes(label = plot_title2), x = 0, y = Inf, vjust = .5, hjust = 0) +
+    ggplot2::labs(x = NULL,
+         y = NULL) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.margin = grid::unit(c(1.5, 0.5, 2.5, 2.5), "lines"),
+          axis.text = ggplot2::element_text(color = "grey40"),
+          plot.title = ggplot2::element_text(hjust = 0))
+  
+  # Code to override clipping
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+  gt$layout$clip[gt$layout$name == "panel"] <- "off"
+  dev.off()
+  grid::grid.draw(gt)
+  return(gt)
+}
+
+
+
+
+
 
