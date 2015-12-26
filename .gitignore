@@ -16,3 +16,4 @@ vignettes/*.pdf
 # proprietary data files
 data/
 data/armchair.sqlite
+models/

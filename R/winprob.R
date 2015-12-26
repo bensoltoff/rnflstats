@@ -416,9 +416,9 @@ random_play <- function(data){
   
   situation$dwn <- 4
   situation$ytg <- floor(runif(1, 1, 10))
-  situation$yfog <- floor(runif(1, 1, (100 - situation$ytg)))
-  situation$secs_left <- floor(runif(1, 1, 3600))
-  situation$score_diff <- floor(runif(1, -20, 20))
+  situation$yfog <- floor(runif(1, 70, (100 - situation$ytg)))
+  situation$secs_left <- floor(runif(1, 1, 300))
+  situation$score_diff <- floor(runif(1, -10, 10))
   situation$timo <- round(runif(1, 1, 3), digits = 0)
   situation$timd <- round(runif(1, 1, 3), digits = 0)
   situation$spread <- 0
@@ -442,12 +442,6 @@ random_play <- function(data){
 #' @return
 #' @export
 #'
-#' @import ggplot2
-#' @import scales
-#' @import grid
-#' @import gridExtra
-#' @import dplyr
-#' @import lubridate
 plot_decision <- function(results){
   # Calculate polygon dimensions for each potential decision
   punt <- dplyr::data_frame(x = c(0, 0,
@@ -488,7 +482,8 @@ plot_decision <- function(results){
   secs_left <- with(results$situation,
                     secs_left - (abs(qtr - 4) * 15 * 60)) %>%
     lubridate::seconds_to_period(.)
-  secs_left <- paste(lubridate::minute(secs_left), lubridate::second(secs_left), sep = ":")
+  secs_left <- paste(lubridate::minute(secs_left), lubridate::second(secs_left) %>%
+                       formatC(., width = 2, format = "d", flag = "0"), sep = ":")
   
   qtr <- with(results$situation,
               ifelse(qtr == 1, "1st",
@@ -499,30 +494,36 @@ plot_decision <- function(results){
     toupper
   plot_title2 <- paste(score_diff, "with", secs_left, "remaining in the", qtr, "quarter")
   
+  alpha <- .25       # alpha parameter for plot - how transparent should the polygons be?
+  
   p <- ggplot2::ggplot() +
+    # Setup plot window size
     ggplot2::scale_x_continuous(labels = scales::percent, breaks = seq(0, 1, by = .2)) +
     ggplot2::scale_y_continuous(labels = scales::percent, breaks = seq(0, 1, by = .2)) +
     ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+    # Draw polygons for each decision
     ggplot2::geom_polygon(data = punt, ggplot2::aes(x, y),
-                 alpha = .4, fill = "red") +
+                 alpha = alpha, fill = "red") +
     ggplot2::geom_polygon(data = go_for_it, ggplot2::aes(x, y),
-                 alpha = .4, fill = "green") +
+                 alpha = alpha, fill = "green") +
     ggplot2::geom_polygon(data = fg, ggplot2::aes(x, y),
-                 alpha = .4, fill = "blue") +
+                 alpha = alpha, fill = "blue") +
     ggplot2::geom_line(data = outline, ggplot2::aes(x, y),
               size = 2, color = "white") +
+    # Indicate decision given specific conversion probabilities
     ggplot2::geom_line(data = dplyr::data_frame(x = c(results$decision$prob_success,
                                                      results$decision$prob_success),
                                 y = c(-.075, results$probs$prob_success_fg)),
-                       ggplot2::aes(x, y), linetype = 2, alpha = .4) +
+                       ggplot2::aes(x, y), linetype = 2, alpha = alpha) +
     ggplot2::geom_line(data = dplyr::data_frame(x = c(results$decision$prob_success, -0.075),
                                 y = c(results$probs$prob_success_fg, results$probs$prob_success_fg)),
-                       ggplot2::aes(x, y), linetype = 2, alpha = .4) +
+                       ggplot2::aes(x, y), linetype = 2, alpha = alpha) +
     ggplot2::geom_point(ggplot2::aes(x = results$decision$prob_success,
                                      y = results$probs$prob_success_fg),
                size = 4) +
     ggplot2::geom_text(data = poly_labs,
-                       ggplot2::aes(x, y, label = label), size = 5, color = "grey40") +
+                       ggplot2::aes(x, y, label = label, color = label), size = 5) +
+    ggplot2::scale_color_manual(values = c("blue2", "green4", "red2")) +
     ggplot2::geom_text(ggplot2::aes(label = paste0(round(results$decision$prob_success * 100),
                                                    "% chance\nof converting\n4th down"),
                                     x = results$decision$prob_success, y = 0),
@@ -531,6 +532,7 @@ plot_decision <- function(results){
                                                    "% chance\nof making\nfield goal"),
                                     x = -.09, y = results$probs$prob_success_fg),
               vjust = .8, hjust = 1, size = 3, lineheight = 1) +
+    # Add title label describing situation
     ggplot2::geom_text(ggplot2::aes(label = plot_title1), x = 0, y = Inf,
                        vjust = -1, hjust = 0, fontface = "bold") +
     ggplot2::geom_text(ggplot2::aes(label = plot_title2), x = 0, y = Inf, vjust = .5, hjust = 0) +
@@ -539,12 +541,13 @@ plot_decision <- function(results){
     ggplot2::theme_minimal() +
     ggplot2::theme(plot.margin = grid::unit(c(1.5, 0.5, 2.5, 2.5), "lines"),
           axis.text = ggplot2::element_text(color = "grey40"),
-          plot.title = ggplot2::element_text(hjust = 0))
+          plot.title = ggplot2::element_text(hjust = 0),
+          legend.position = "none")
   
   # Code to override clipping
   gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
   gt$layout$clip[gt$layout$name == "panel"] <- "off"
-  dev.off()
+  grid::grid.newpage()
   grid::grid.draw(gt)
   return(gt)
 }
