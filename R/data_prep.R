@@ -367,17 +367,19 @@ join_df_first_down_rates <- function(df, fd_open_field, fd_inside_10){
 #' @return data_frame
 dp_kneel_down <- function(df){
   df %<>%
-    dplyr::mutate(kneel_down = NA,
+    dplyr::mutate(kneel_down = 0,
                   kneel_down = ifelse(timd == 0 & secs_left <= 120 & dwn == 1 &
                                         score_diff > 0, 1, kneel_down),
-                  kneel_down = ifelse(timd == 1 & secs_left == 84 & dwn == 1 &
+                  kneel_down = ifelse(timd == 1 & secs_left <= 84 & dwn == 1 &
                                         score_diff > 0, 1, kneel_down),
                   kneel_down = ifelse(timd == 2 & secs_left <= 48 & dwn == 1 &
                                         score_diff > 0, 1, kneel_down),
+                  
                   kneel_down = ifelse(timd == 0 & secs_left <= 84 & dwn == 2 &
                                         score_diff > 0, 1, kneel_down),
                   kneel_down = ifelse(timd == 1 & secs_left <= 45 & dwn == 2 &
                                         score_diff > 0, 1, kneel_down),
+                  
                   kneel_down = ifelse(timd == 0 & secs_left <= 42 & dwn == 3 &
                                         score_diff > 0, 1, kneel_down),
                   kneel_down = ifelse(score_diff <= 0 | dwn == 4, 0, kneel_down))
