@@ -56,6 +56,7 @@ print.accuracy.meas <- function(x, ...)
 #' @param roc_auc AUC value.
 #'
 #' @return Plot of ROC curve.
+#' @export
 plot_roc <- function(roc_data, roc_auc){
   ggplot2::ggplot(roc_data, ggplot2::aes(x = fpr, y = tpr, ymin = 0, ymax = tpr)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
@@ -85,6 +86,7 @@ read_key <- function()
 #' @param truth Vector of actual wins.
 #'
 #' @return \code{ggplot2}
+#' @export
 calibration_plot <- function(preds, truth, fg = FALSE){
   cal_df <- dplyr::data_frame(pred = preds, win = truth,
                        pred_bin = dplyr::ntile(pred, 100))
