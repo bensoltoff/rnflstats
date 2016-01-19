@@ -63,7 +63,7 @@ plot_roc <- function(roc_data, roc_auc){
     ggplot2::geom_ribbon(alpha = 0.2) +
     ggplot2::geom_line() +
     ggplot2::annotate("text", x = 1, y = 0, hjust = 1.2, vjust = -1.2,
-                      label = paste("AUC =", round(roc_auc, digits = 2))) +
+                      label = paste("Area Under the Curve =", round(roc_auc, digits = 2))) +
     ggplot2::labs(title = "Receiver Operating Characteristic",
          x = "False Positive Rate",
          y = "True Positive Rate") +
@@ -94,11 +94,15 @@ calibration_plot <- function(preds, truth, fg = FALSE){
   win_means <- cal_df %>%
     dplyr::group_by(pred_bin) %>%
     dplyr::summarize(pred = mean(pred),
-              win = mean(win))
-  
-  plot <- ggplot2::ggplot(win_means, ggplot2::aes(pred, win)) +
+                     win = mean(win),
+                     win_sd = sqrt(win * (1 - win) / n()),
+                     win_min = win - 1.96 * win_sd,
+                     win_max = win + 1.96 * win_sd)
+
+  plot <- ggplot2::ggplot(win_means, ggplot2::aes(pred, win, ymin = win_min, ymax = win_max)) +
     ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
-    ggplot2::geom_line(color = "blue") +
+    ggplot2::geom_ribbon(fill = "blue", alpha = .3) +
+    ggplot2::geom_line(color = "black") +
     ggplot2::scale_x_continuous(labels = scales::percent) +
     ggplot2::scale_y_continuous(labels = scales::percent) +
     ggplot2::theme_bw()
