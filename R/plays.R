@@ -6,6 +6,7 @@
 #' @param dwn 
 #'
 #' @return 0/1
+#' @export
 kneel_down <- function(score_diff, timd, secs_left, dwn){
   if(score_diff <= 0 | dwn == 4){
     return(0)
@@ -198,6 +199,7 @@ first_down <- function(situation){
 #' @param secs_left 
 #'
 #' @return
+#' @export
 qtr <- function(secs_left){
   if(secs_left <= 900) return(4)
   if(secs_left <= 1800) return(3)

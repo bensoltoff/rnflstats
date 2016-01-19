@@ -382,6 +382,7 @@ dp_kneel_down <- function(df){
                   
                   kneel_down = ifelse(timd == 0 & secs_left <= 42 & dwn == 3 &
                                         score_diff > 0, 1, kneel_down),
+                  
                   kneel_down = ifelse(score_diff <= 0 | dwn == 4, 0, kneel_down))
   return(df)
 }
