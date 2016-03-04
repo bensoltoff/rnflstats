@@ -306,9 +306,9 @@ first_down_rates <- function(df_plays, yfog){
   
   # Need to fill in any missing combinations where possible
   if(yfog == "yfog_bin"){
-    merged <- tidyr::complete(merged, c(yfog_bin, dwn, ytg))
+    merged <- tidyr::complete(merged, yfog_bin, dwn, ytg)
   } else {
-    merged <- tidyr::complete(merged, c(yfog, dwn, ytg))
+    merged <- tidyr::complete(merged, yfog, dwn, ytg)
   }
   merged %<>%
     dplyr::rename(fdr = weighted_fdr)
